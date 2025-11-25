@@ -25,7 +25,6 @@ app.post("/register", async (req, res) => {
 // ================== LOGIN ==================
 app.post("/login", (req, res) => {
   const { email, password } = req.body;
-
   const sql = "SELECT * FROM users WHERE email = ?";
   db.query(sql, [email], async (err, results) => {
     if (err || results.length == 0)
@@ -33,18 +32,13 @@ app.post("/login", (req, res) => {
 
     const user = results[0];
     const match = await bcrypt.compare(password, user.password);
-    if (!match)
-      return res.status(400).json({ message: "Credenziali errate" });
+    if (!match) return res.status(400).json({ message: "Credenziali errate" });
 
-    res.json({
-      id: user.id,
-      username: user.username,
-      email: user.email
-    });
+    res.json({ id: user.id, username: user.username, email: user.email });
   });
 });
 
-// ================== API GRUPPI ==================
+// ================== GRUPPI ==================
 
 // Ottenere gruppi di un utente
 app.get("/groups", (req, res) => {
@@ -66,8 +60,9 @@ app.post("/groups/create", (req, res) => {
   const sql = "INSERT INTO groups (name, is_private) VALUES (?, false)";
   db.query(sql, [name], (err, result) => {
     if (err) return res.status(500).json({ error: err });
+
     const groupId = result.insertId;
-    db.query("INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)", [Id, groupId]);
+    db.query("INSERT INTO user_groups (user_id, group_id, role) VALUES (?, ?, 'admin')", [userId, groupId]);
     res.json({ success: true, groupId });
   });
 });
@@ -79,8 +74,9 @@ app.post("/groups/create/private", (req, res) => {
   const sql = "INSERT INTO groups (name, is_private, token) VALUES (?, true, ?)";
   db.query(sql, [name, token], (err, result) => {
     if (err) return res.status(500).json({ error: err });
+
     const groupId = result.insertId;
-    db.query("INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)", [userId, groupId]);
+    db.query("INSERT INTO user_groups (user_id, group_id, role) VALUES (?, ?, 'admin')", [userId, groupId]);
     res.json({ success: true, groupId, token });
   });
 });
@@ -92,8 +88,9 @@ app.post("/groups/join/public", (req, res) => {
   db.query(sql, [name], (err, results) => {
     if (err) return res.status(500).json({ error: err });
     if (results.length === 0) return res.status(404).json({ error: "Gruppo non trovato" });
+
     const groupId = results[0].id;
-    db.query("INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)", [userId, groupId]);
+    db.query("INSERT INTO user_groups (user_id, group_id, role) VALUES (?, ?, 'member')", [userId, groupId]);
     res.json({ success: true });
   });
 });
@@ -105,8 +102,9 @@ app.post("/groups/join/private", (req, res) => {
   db.query(sql, [token], (err, results) => {
     if (err) return res.status(500).json({ error: err });
     if (results.length === 0) return res.status(404).json({ error: "Token non valido" });
+
     const groupId = results[0].id;
-    db.query("INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)", [userId, groupId]);
+    db.query("INSERT INTO user_groups (user_id, group_id, role) VALUES (?, ?, 'member')", [userId, groupId]);
     res.json({ success: true });
   });
 });
@@ -135,6 +133,49 @@ app.get("/messages", (req, res) => {
   db.query(sql, [groupId], (err, results) => {
     if (err) return res.status(500).json({ error: err });
     res.json({ messages: results });
+  });
+});
+
+// ================== MEMBRI E RUOLI ==================
+
+// Ottenere membri di un gruppo
+app.get("/groups/:groupId/members", (req, res) => {
+  const groupId = req.params.groupId;
+
+  const sql = `
+    SELECT 
+      users.id,
+      users.username,
+      COALESCE(user_groups.role, 'member') AS role
+    FROM user_groups
+    JOIN users ON users.id = user_groups.user_id
+    WHERE user_groups.group_id = ?
+  `;
+
+  db.query(sql, [groupId], (err, results) => {
+    if (err) {
+      console.error("ERRORE SQL:", err);
+      return res.status(500).json({ error: "Errore nel recupero membri" });
+    }
+
+    res.json({ members: results });
+  });
+});
+
+
+// Assegnare ruolo a membro
+app.post("/groups/:id/members/:memberId/role", (req, res) => {
+  const groupId = req.params.id;
+  const memberId = req.params.memberId;
+  const { role } = req.body;
+
+  const sql = "UPDATE user_groups SET role = ? WHERE group_id = ? AND user_id = ?";
+  db.query(sql, [role, groupId, memberId], (err) => {
+    if (err) {
+      console.error("ERRORE SQL:", err);
+      return res.status(500).json({ error: "Errore aggiornamento ruolo" });
+    }
+    res.json({ success: true });
   });
 });
 
