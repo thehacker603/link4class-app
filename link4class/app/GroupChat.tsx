@@ -47,11 +47,29 @@ export default function GroupChat({ navigation }: any) {
     }
   };
 
-  useEffect(() => {
-    loadData();
-    const interval = setInterval(fetchMessages, 3000);
-    return () => clearInterval(interval);
-  }, [group]);
+useEffect(() => {
+  const loadData = async () => {
+    const userJson = await AsyncStorage.getItem("user");
+    if (userJson) setUserId(JSON.parse(userJson).id);
+
+    const groupJson = await AsyncStorage.getItem("currentGroup");
+    if (groupJson) setGroup(JSON.parse(groupJson));
+  };
+
+  loadData();
+}, []); // Carica user e gruppo solo al montaggio
+
+useEffect(() => {
+  if (!group) return;
+
+  // Fetch immediato dei messaggi
+  fetchMessages();
+
+  // Aggiornamento automatico ogni 3 secondi
+  const interval = setInterval(fetchMessages, 3000);
+  return () => clearInterval(interval);
+}, [group]); // Dipendenza sul gruppo
+
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !userId || !group) return;
