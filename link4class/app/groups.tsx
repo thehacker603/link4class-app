@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, StyleSheet } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type Group = {
   id: number;
@@ -7,37 +8,45 @@ type Group = {
   is_private: boolean;
 };
 
-type Props = {
-  userId: number; // Passato dal login
-};
-
-export default function Groups({ userId }: Props) {
+export default function Groups() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [actionType, setActionType] = useState<"" | "create" | "joinPublic" | "joinPrivate">("");
   const [groupName, setGroupName] = useState("");
   const [groupToken, setGroupToken] = useState("");
+  const [userId, setUserId] = useState<number | null>(null);
 
   const API_URL = "http://192.168.0.160:3000"; // indirizzo backend
 
+  // recupera l'utente da AsyncStorage
+  const loadUser = async () => {
+    const userJson = await AsyncStorage.getItem("user");
+    if (userJson) {
+      const user = JSON.parse(userJson);
+      setUserId(user.id);
+      fetchGroups(user.id);
+    }
+  };
+
   // fetch dei gruppi dell'utente
-  const fetchGroups = async () => {
+  const fetchGroups = async (uid: number) => {
     try {
-      const res = await fetch(`${API_URL}/groups?userId=${userId}`);
+      const res = await fetch(`${API_URL}/groups?userId=${uid}`);
       const data = await res.json();
-      setGroups(data.groups); // aggiorna lo stato dei gruppi
+      setGroups(data.groups || []);
     } catch (err) {
       console.error(err);
     }
   };
 
-  // fetch iniziale dei gruppi
   useEffect(() => {
-    fetchGroups();
+    loadUser();
   }, []);
 
   // gestisce creazione o unione
   const handleAction = async () => {
+    if (!userId) return;
+
     let url = "";
     let body: any = { userId };
 
@@ -63,7 +72,10 @@ export default function Groups({ userId }: Props) {
         setModalVisible(false);
         setGroupName("");
         setGroupToken("");
-        fetchGroups(); // aggiorna la lista dopo l'azione
+        fetchGroups(userId); // aggiorna la lista
+      } else {
+        const err = await res.json();
+        console.error("Errore backend:", err);
       }
     } catch (err) {
       console.error(err);

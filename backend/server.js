@@ -67,7 +67,7 @@ app.post("/groups/create", (req, res) => {
   db.query(sql, [name], (err, result) => {
     if (err) return res.status(500).json({ error: err });
     const groupId = result.insertId;
-    db.query("INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)", [userId, groupId]);
+    db.query("INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)", [Id, groupId]);
     res.json({ success: true, groupId });
   });
 });
