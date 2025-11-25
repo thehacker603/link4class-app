@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  Modal,
+  TextInput,
+  StyleSheet,
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useNavigation } from "@react-navigation/native";
 
 type Group = {
   id: number;
@@ -9,6 +18,7 @@ type Group = {
 };
 
 export default function Groups() {
+  const navigation = useNavigation<any>(); // <any> evita errori di TypeScript
   const [groups, setGroups] = useState<Group[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [actionType, setActionType] = useState<"" | "create" | "joinPublic" | "joinPrivate">("");
@@ -16,9 +26,9 @@ export default function Groups() {
   const [groupToken, setGroupToken] = useState("");
   const [userId, setUserId] = useState<number | null>(null);
 
-  const API_URL = "http://192.168.0.160:3000"; // indirizzo backend
+  const API_URL = "http://192.168.0.160:3000";
 
-  // recupera l'utente da AsyncStorage
+  // Recupera l'utente da AsyncStorage
   const loadUser = async () => {
     const userJson = await AsyncStorage.getItem("user");
     if (userJson) {
@@ -28,7 +38,7 @@ export default function Groups() {
     }
   };
 
-  // fetch dei gruppi dell'utente
+  // Recupera gruppi
   const fetchGroups = async (uid: number) => {
     try {
       const res = await fetch(`${API_URL}/groups?userId=${uid}`);
@@ -43,10 +53,9 @@ export default function Groups() {
     loadUser();
   }, []);
 
-  // gestisce creazione o unione
+  // Creazione / unione gruppo
   const handleAction = async () => {
     if (!userId) return;
-
     let url = "";
     let body: any = { userId };
 
@@ -72,7 +81,7 @@ export default function Groups() {
         setModalVisible(false);
         setGroupName("");
         setGroupToken("");
-        fetchGroups(userId); // aggiorna la lista
+        fetchGroups(userId);
       } else {
         const err = await res.json();
         console.error("Errore backend:", err);
@@ -80,6 +89,12 @@ export default function Groups() {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  // Redirect al gruppo usando AsyncStorage
+  const openGroup = async (group: Group) => {
+    await AsyncStorage.setItem("currentGroup", JSON.stringify(group));
+    navigation.navigate("GroupChat"); // ora navigation è definito
   };
 
   return (
@@ -92,9 +107,12 @@ export default function Groups() {
         data={groups}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <View style={styles.groupItem}>
+          <TouchableOpacity
+            style={styles.groupItem}
+            onPress={() => openGroup(item)}
+          >
             <Text>{item.name} {item.is_private ? "(Privato)" : ""}</Text>
-          </View>
+          </TouchableOpacity>
         )}
       />
 
